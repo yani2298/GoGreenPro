@@ -1,0 +1,9 @@
+name: Achievements
+on: [push, workflow_dispatch]
+jobs:
+  achievements:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Achievement Action
+        run: echo '🏆 GitHub Achievements Unlocked!'
