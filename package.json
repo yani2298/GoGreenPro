@@ -1,19 +1,55 @@
 {
-  "name": "thomyorke",
-  "version": "1.0.0",
-  "description": "nice dream",
+  "name": "gogreen-cli",
+  "version": "2.0.0",
+  "description": "🌱 Make your GitHub contribution graph look amazing with custom patterns and commits",
   "main": "index.js",
   "type": "module",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "bin": {
+    "gogreen": "./cli.js",
+    "gg": "./cli.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "node index.js",
+    "cli": "node cli.js",
+    "run": "node cli.js",
+    "dry-run": "node -e \"import('./index.js').then(m => { m.CONFIG.dryRun = true; m.main(); })\"",
+    "heart": "node -e \"import('./index.js').then(m => { m.CONFIG.usePattern = true; m.CONFIG.pattern = 'heart'; m.main(); })\"",
+    "wave": "node -e \"import('./index.js').then(m => { m.CONFIG.usePattern = true; m.CONFIG.pattern = 'wave'; m.main(); })\"",
+    "random": "node -e \"import('./index.js').then(m => { m.CONFIG.totalCommits = 100; m.main(); })\"",
+    "test": "echo \"✅ GoGreen is ready to use! Run 'npm run setup' for first-time setup or 'npm run cli' to start.\""
+  },
+  "keywords": [
+    "github",
+    "contributions",
+    "graph",
+    "commits",
+    "profile",
+    "green",
+    "pattern",
+    "cli",
+    "git",
+    "automation"
+  ],
+  "author": "Enhanced by AI Assistant",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fenrir2608/goGreen.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fenrir2608/goGreen/issues"
+  },
+  "homepage": "https://github.com/fenrir2608/goGreen#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
   "dependencies": {
     "jsonfile": "^6.1.0",
     "moment": "^2.30.1",
     "random": "^4.1.0",
     "simple-git": "^3.25.0"
-  }
+  },
+  "devDependencies": {},
+  "preferGlobal": true
 }
