@@ -27,7 +27,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO_URL: "https://github.com/${{ github.repository }}.git"
           USER_NAME: "yani2298"
-          USER_EMAIL: "yanismosbah@gmail.com"
+          USER_EMAIL: "166488970+yani2298@users.noreply.github.com"
         run: |
           # Run for the last 7 days to ensure no gaps
           START_DATE=$(date -d "7 days ago" +%Y-%m-%d)
