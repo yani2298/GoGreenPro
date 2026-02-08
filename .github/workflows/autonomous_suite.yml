@@ -1,15 +1,22 @@
-name: Autonomous Achievement & Streak Suite
+name: Autonomous Achievement & Streak Suite (Daily Stealth)
 
 on:
   schedule:
-    - cron: '0 0 * * 1' # Every Monday at midnight
-    - cron: '0 0 * * 4' # Every Thursday at midnight (Double frequency for better metrics)
+    - cron: '45 3 * * *' # Every day at 03:45 AM (Randomized time)
   workflow_dispatch: # Allow manual trigger
 
 jobs:
   automation:
     runs-on: ubuntu-latest
     steps:
+      - name: Stealth Check (Random Skip)
+        run: |
+          # 10% chance to skip the daily run to mimic human behavior
+          RANDOM_VAL=$((1 + $RANDOM % 10))
+          if [ $RANDOM_VAL -eq 1 ]; then
+            echo "Stealth skip: Mimicking a day off."
+            exit 0
+          fi
       - uses: actions/checkout@v4
         with:
           # Use GH_TOKEN for multi-repo access, fallback to GITHUB_TOKEN for local
@@ -38,13 +45,14 @@ jobs:
             "https://github.com/yani2298/MuslimHub.git"
           )
           
-          START_DATE=$(date -d "7 days ago" +%Y-%m-%d)
+          START_DATE=$(date -d "1 day ago" +%Y-%m-%d)
           END_DATE=$(date +%Y-%m-%d)
           
           for repo in "${REPOS[@]}"; do
             echo "::group::Maintaining $repo"
             export REPO_URL=$repo
-            python3 github_contribution_booster.py --start $START_DATE --end $END_DATE --freq 3
+            # Keep it low: 1-2 commits per repo per day
+            python3 github_contribution_booster.py --start $START_DATE --end $END_DATE --freq 2
             echo "::endgroup::"
           done
 
@@ -55,6 +63,10 @@ jobs:
           USER_NAME: "yani2298"
           USER_EMAIL: "166488970+yani2298@users.noreply.github.com"
         run: |
-          # Run the suite for all badges
-          # Shark needs 16 PRs, we can do 2 per run to stay under the radar or push all if the token is strong
-          python3 github_pair_badge.py --badge all --count 4
+          # Only run one badge attempt per day to stay safe
+          BADGES=("shark" "quick" "pair" "yolo")
+          SELECTED_BADGE=${BADGES[$RANDOM % ${#BADGES[@]}]}
+          echo "Selected Badge for today: $SELECTED_BADGE"
+          
+          # For shark, we only do 1 PR per day to spread it out over 16 days
+          python3 github_pair_badge.py --badge $SELECTED_BADGE --count 1
