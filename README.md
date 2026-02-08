@@ -86,6 +86,12 @@ python3 github_pair_badge.py
 - ✅ Interface colorée
 - ✅ Nettoyage automatique des fichiers temporaires
 
+### Script Contribution Booster (`github_contribution_booster.py`)
+- ✅ Remplissage automatique du graphique de contributions GitHub
+- ✅ Support du backdating (contributions pour des dates passées)
+- ✅ Fréquence de commits personnalisable
+- ✅ Push automatique (avec support --force si nécessaire)
+
 ## 📝 Processus automatisé
 
 1. **Configuration**: Collecte des informations utilisateur
@@ -178,6 +184,16 @@ Une fois le processus terminé avec succès:
 - ✅ Votre dépôt contiendra un commit collaboratif
 - ✅ Le badge "Pair Extraordinaire" apparaîtra sur votre profil
 - ✅ Vous aurez démontré vos compétences en collaboration
+
+## 🚀 Boost de Contribution (Graphique Vert)
+
+Pour remplir les zones vides de votre graphique GitHub :
+
+1. Lancez `./quick_start.sh`
+2. Choisissez l'option **5** (Contribution Booster)
+3. Entrez les dates de début et de fin souhaitées (format AAAA-MM-JJ)
+4. Définissez la fréquence (nombre de commits par jour)
+5. Laissez la magie opérer !
 
 ---
 

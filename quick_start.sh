@@ -51,7 +51,7 @@ echo "3. Configuration par variables d'environnement"
 echo "4. Aide et documentation"
 echo ""
 
-read -p "Votre choix (1-4): " choice
+read -p "Votre choix (1-5): " choice
 
 case $choice in
     1)
@@ -121,6 +121,10 @@ case $choice in
         echo "• Section Achievements mise à jour"
         echo ""
         cat README.md
+        ;;
+    5)
+        echo "🚀 Lancement du Contribution Booster..."
+        python3 github_contribution_booster.py
         ;;
     *)
         echo "❌ Choix invalide"
