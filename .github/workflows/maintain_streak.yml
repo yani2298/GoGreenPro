@@ -1,0 +1,35 @@
+name: Maintain Contribution Streak
+
+on:
+  schedule:
+    - cron: '0 0 * * 1' # Every Monday at midnight
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  boost:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-python: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Contribution Booster
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_URL: "https://github.com/${{ github.repository }}.git"
+          USER_NAME: "yani2298"
+          USER_EMAIL: "yanismosbah@gmail.com"
+        run: |
+          # Run for the last 7 days to ensure no gaps
+          START_DATE=$(date -d "7 days ago" +%Y-%m-%d)
+          END_DATE=$(date +%Y-%m-%d)
+          python3 github_contribution_booster.py --start $START_DATE --end $END_DATE --freq 2
