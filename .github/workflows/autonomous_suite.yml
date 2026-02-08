@@ -1,0 +1,60 @@
+name: Autonomous Achievement & Streak Suite
+
+on:
+  schedule:
+    - cron: '0 0 * * 1' # Every Monday at midnight
+    - cron: '0 0 * * 4' # Every Thursday at midnight (Double frequency for better metrics)
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  automation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use GH_TOKEN for multi-repo access, fallback to GITHUB_TOKEN for local
+          token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests --break-system-packages
+
+      - name: Run Multi-Repo Contribution Maintenance
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          USER_NAME: "yani2298"
+          USER_EMAIL: "166488970+yani2298@users.noreply.github.com"
+        run: |
+          # Sequence of repos to keep active
+          REPOS=(
+            "https://github.com/yani2298/GoGreenPro.git"
+            "https://github.com/yani2298/salat-now.git"
+            "https://github.com/yani2298/PlayOuran.git"
+            "https://github.com/yani2298/MuslimHub.git"
+          )
+          
+          START_DATE=$(date -d "7 days ago" +%Y-%m-%d)
+          END_DATE=$(date +%Y-%m-%d)
+          
+          for repo in "${REPOS[@]}"; do
+            echo "::group::Maintaining $repo"
+            export REPO_URL=$repo
+            python3 github_contribution_booster.py --start $START_DATE --end $END_DATE --freq 3
+            echo "::endgroup::"
+          done
+
+      - name: Run Achievement Automation (Badges)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          REPO_URL: "https://github.com/${{ github.repository }}.git"
+          USER_NAME: "yani2298"
+          USER_EMAIL: "166488970+yani2298@users.noreply.github.com"
+        run: |
+          # Run the suite for all badges
+          # Shark needs 16 PRs, we can do 2 per run to stay under the radar or push all if the token is strong
+          python3 github_pair_badge.py --badge all --count 4

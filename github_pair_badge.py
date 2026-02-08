@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Script automatisé pour obtenir le badge "Pair Extraordinaire" sur GitHub
-Utilise l'API GitHub pour une automatisation complète
+GitHub Achievement Automation Suite (GoGreenPro)
+Automates Pull Shark, Quickdraw, YOLO, and Pair Extraordinaire badges.
+Inspiré par la philosophie d'automatisation Clawdbot.
 """
 
 import os
@@ -9,388 +10,287 @@ import sys
 import subprocess
 import json
 import requests
+import time
+import random
+import argparse
 from datetime import datetime
 import tempfile
 import shutil
 
-class GitHubPairBadgeAutomator:
+class Color:
+    BLUE = "\033[94m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    BOLD = "\033[1m"
+    END = "\033[0m"
+
+class BadgeAutomator:
     def __init__(self):
-        self.repo_url = ""
-        self.user_name = ""
-        self.user_email = ""
-        self.github_token = ""
-        self.collaborator_name = "GitHub Assistant"
-        self.collaborator_email = "assistant@github.example"
-        self.branch_name = f"feature/pair-badge-{int(datetime.now().timestamp())}"
-        self.repo_name = ""
+        self.config = {
+            "github_token": os.getenv("GITHUB_TOKEN"),
+            "repo_url": os.getenv("REPO_URL"),
+            "user_name": os.getenv("USER_NAME"),
+            "user_email": os.getenv("USER_EMAIL"),
+            "collaborator_name": os.getenv("COLLABORATOR_NAME", "GitHub Assistant"),
+            "collaborator_email": os.getenv("COLLABORATOR_EMAIL", "assistant@github.example")
+        }
         self.repo_owner = ""
+        self.repo_name = ""
         self.working_dir = ""
+        self.headers = {}
         
-    def print_step(self, message):
-        print(f"\033[34m[ÉTAPE]\033[0m {message}")
+    def log(self, tag, message, color=Color.BLUE):
+        print(f"{color}[{tag}]{Color.END} {message}")
+
+    def setup(self):
+        """Pre-run setup and configuration loading"""
+        self.log("SETUP", "Chargement de la configuration...")
         
-    def print_success(self, message):
-        print(f"\033[32m[SUCCÈS]\033[0m {message}")
+        # Interactive fallback if missing
+        if not self.config["repo_url"]:
+            self.config["repo_url"] = input("URL du dépôt GitHub: ").strip()
+        if not self.config["user_name"]:
+            self.config["user_name"] = input("Votre nom d'utilisateur GitHub: ").strip()
+        if not self.config["user_email"]:
+            self.config["user_email"] = input("Votre email GitHub: ").strip()
+        if not self.config["github_token"]:
+            self.log("WARN", "GITHUB_TOKEN manquant. Certaines fonctions API seront limitées.", Color.YELLOW)
         
-    def print_warning(self, message):
-        print(f"\033[33m[ATTENTION]\033[0m {message}")
-        
-    def print_error(self, message):
-        print(f"\033[31m[ERREUR]\033[0m {message}")
-    
-    def setup_config(self):
-        """Configuration initiale interactive ou par variables d'environnement"""
-        self.print_step("Configuration initiale...")
-        
-        # Récupérer les informations
-        self.github_token = os.getenv('GITHUB_TOKEN') or input("Token GitHub (optionnel pour repos publics): ").strip()
-        self.repo_url = os.getenv('REPO_URL') or input("URL du dépôt GitHub: ").strip()
-        self.user_name = os.getenv('USER_NAME') or input("Votre nom GitHub: ").strip()
-        self.user_email = os.getenv('USER_EMAIL') or input("Votre email GitHub: ").strip()
-        
-        # Extraire owner et repo name de l'URL
-        if 'github.com/' in self.repo_url:
-            parts = self.repo_url.split('github.com/')[-1].replace('.git', '').split('/')
+        # Parse Repo Info
+        if 'github.com/' in self.config["repo_url"]:
+            parts = self.config["repo_url"].split('github.com/')[-1].replace('.git', '').split('/')
             self.repo_owner = parts[0]
             self.repo_name = parts[1]
         else:
-            raise ValueError("URL de dépôt GitHub invalide")
-            
-        self.print_success("Configuration terminée")
-    
-    def run_command(self, command, cwd=None):
-        """Exécuter une commande shell"""
+            raise ValueError("URL de dépôt invalide. Utilisez le format: https://github.com/user/repo.git")
+
+        if self.config["github_token"]:
+            self.headers = {
+                "Authorization": f"token {self.config['github_token']}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+
+    def run_git(self, command, cwd=None, env=None):
+        """Execute git command and return success/output"""
         try:
+            current_env = os.environ.copy()
+            if env:
+                current_env.update(env)
+            
+            # Ensure local git identity
+            self.run_silent_git(f'git config user.name "{self.config["user_name"]}"', cwd)
+            self.run_silent_git(f'git config user.email "{self.config["user_email"]}"', cwd)
+
             result = subprocess.run(
                 command, 
                 shell=True, 
                 capture_output=True, 
                 text=True, 
-                cwd=cwd or self.working_dir
+                cwd=cwd or self.working_dir,
+                env=current_env
             )
-            if result.returncode != 0:
-                self.print_error(f"Erreur commande: {result.stderr}")
-                return False, result.stderr
-            return True, result.stdout
+            return result.returncode == 0, result.stdout, result.stderr
         except Exception as e:
-            self.print_error(f"Exception: {str(e)}")
-            return False, str(e)
-    
-    def prepare_repo(self):
-        """Cloner ou préparer le dépôt"""
-        self.print_step("Préparation du dépôt...")
+            return False, "", str(e)
+
+    def run_silent_git(self, command, cwd=None):
+        subprocess.run(command, shell=True, capture_output=True, cwd=cwd or self.working_dir)
+
+    def prepare_temp_repo(self):
+        """Create a temporary clone for operations"""
+        self.log("GIT", "Préparation d'un clone temporaire...")
+        self.working_dir = tempfile.mkdtemp(prefix="gogreen_")
         
-        # Créer un répertoire temporaire
-        self.working_dir = tempfile.mkdtemp(prefix="github_pair_")
-        repo_path = os.path.join(self.working_dir, self.repo_name)
-        
-        # Cloner le dépôt
-        clone_cmd = f"git clone {self.repo_url} {repo_path}"
-        success, output = self.run_command(clone_cmd, self.working_dir)
-        
+        clone_url = self.config["repo_url"]
+        if self.config["github_token"] and "https://" in clone_url:
+            clone_url = clone_url.replace("https://", f"https://{self.config['github_token']}@")
+
+        success, _, err = self.run_git(f"git clone {clone_url} .", self.working_dir)
         if not success:
-            self.print_error("Échec du clonage")
+            self.log("ERROR", f"Échec du clonage: {err}", Color.RED)
             return False
-            
-        self.working_dir = repo_path
-        
-        # Mettre à jour
-        success, _ = self.run_command("git pull")
-        self.print_success("Dépôt préparé")
         return True
-    
-    def create_branch(self):
-        """Créer une nouvelle branche"""
-        self.print_step(f"Création de la branche {self.branch_name}...")
+
+    def api_post(self, endpoint, data):
+        url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/{endpoint}"
+        response = requests.post(url, headers=self.headers, json=data)
+        return response
+
+    def api_put(self, endpoint, data):
+        url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/{endpoint}"
+        response = requests.put(url, headers=self.headers, json=data)
+        return response
+
+    def api_delete(self, endpoint):
+        url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/{endpoint}"
+        response = requests.delete(url, headers=self.headers)
+        return response
+
+    # --- BADGE STRATEGIES ---
+
+    def badge_pair_extraordinaire(self):
+        """Automate Pair Extraordinaire Achievement"""
+        self.log("BADGE", "Exécution de la stratégie 'Pair Extraordinaire'...")
+        branch = f"achievement/pair-{int(time.time())}"
+        self.run_git(f"git checkout -b {branch}")
         
-        success, _ = self.run_command(f"git checkout -b {self.branch_name}")
-        if success:
-            self.print_success("Branche créée")
-            return True
-        return False
-    
-    def make_changes(self):
-        """Effectuer des modifications dans le dépôt"""
-        self.print_step("Modification des fichiers...")
+        # Make changes
+        with open(os.path.join(self.working_dir, "ACHIEVEMENTS.md"), "a") as f:
+            f.write(f"\n- Pair Extraordinaire Attempt: {datetime.now().isoformat()}")
         
-        # Créer ou modifier un fichier
-        readme_path = os.path.join(self.working_dir, "README.md")
-        collab_file = os.path.join(self.working_dir, "COLLABORATION.md")
+        # Multi-author commit
+        msg = f"feat: Collaborative advancement for Pair Extraordinaire\n\nCo-authored-by: {self.config['collaborator_name']} <{self.config['collaborator_email']}>\nCo-authored-by: {self.config['user_name']} <{self.config['user_email']}>"
+        self.run_git("git add .")
+        self.run_git(f'git commit -m "{msg}"')
         
-        if os.path.exists(readme_path):
-            # Ajouter à README existant
-            with open(readme_path, 'a', encoding='utf-8') as f:
-                f.write(f"\n\n<!-- Collaboration update {datetime.now().isoformat()} -->\n")
-                f.write("🤝 **Pair Programming**: Contributing to open source with collaboration\n")
-            self.print_success("README.md modifié")
+        self.log("GIT", f"Pushing branch {branch}...")
+        self.run_git(f"git push origin {branch}")
+        
+        if self.config["github_token"]:
+            self.log("API", "Création de la Pull Request...")
+            res = self.api_post("pulls", {
+                "title": "Achievement: Pair Extraordinaire",
+                "head": branch,
+                "base": "main",
+                "body": "Demonstrating collaborative development."
+            })
+            if res.status_code == 201:
+                pr_data = res.json()
+                pr_num = pr_data["number"]
+                self.log("SUCCESS", f"PR #{pr_num} créée.")
+                self.log("API", "Fusion de la PR...")
+                self.api_put(f"pulls/{pr_num}/merge", {"merge_method": "squash"})
+                self.api_delete(f"git/refs/heads/{branch}")
+                self.log("SUCCESS", "Badge 'Pair Extraordinaire' débloqué (en théorie)!")
         else:
-            # Créer un nouveau fichier de collaboration
-            content = f"""# Collaboration Update
+            self.log("INFO", "Créez une PR manuellement pour finaliser.", Color.YELLOW)
 
-Date: {datetime.now().isoformat()}
-Auteurs: {self.user_name} et {self.collaborator_name}
+    def badge_pull_shark(self, count=2):
+        """Automate Pull Shark Achievement (Multiple PRs)"""
+        self.log("BADGE", f"Exécution de la stratégie 'Pull Shark' ({count} PRs)...")
+        if not self.config["github_token"]:
+            self.log("ERROR", "Token requis pour Pull Shark.", Color.RED)
+            return
 
-## Objectif
-Démonstration de collaboration pour le badge Pair Extraordinaire
+        for i in range(count):
+            self.log("STEP", f"PR {i+1}/{count}...")
+            branch = f"achievement/shark-{i}-{int(time.time())}"
+            self.run_git(f"git checkout main")
+            self.run_git(f"git checkout -b {branch}")
+            
+            filename = f"shark_{i}.txt"
+            with open(os.path.join(self.working_dir, filename), "w") as f:
+                f.write(f"Shark byte {i} at {time.time()}")
+            
+            self.run_git(f"git add {filename}")
+            self.run_git(f'git commit -m "chore: add shark data {i}"')
+            self.run_git(f"git push origin {branch}")
+            
+            res = self.api_post("pulls", {
+                "title": f"Shark Contribution {i}",
+                "head": branch,
+                "base": "main",
+                "body": f"Automated PR for Pull Shark achievement #{i}"
+            })
+            if res.status_code == 201:
+                pr_data = res.json()
+                pr_num = pr_data["number"]
+                self.api_put(f"pulls/{pr_num}/merge", {"merge_method": "merge"})
+                self.api_delete(f"git/refs/heads/{branch}")
+                self.log("OK", f"PR #{pr_num} mergée.")
+            
+            time.sleep(1) # Small delay to avoid API rate limits
 
-## Modifications
-- Ajout de documentation collaborative
-- Mise à jour des métadonnées du projet
-- Démonstration des pratiques de pair programming
+    def badge_quickdraw(self):
+        """Automate Quickdraw Achievement (Close PR < 5m)"""
+        self.log("BADGE", "Exécution de la stratégie 'Quickdraw'...")
+        if not self.config["github_token"]:
+            self.log("ERROR", "Token requis pour Quickdraw.", Color.RED)
+            return
 
-## Métadonnées
-- Repository: {self.repo_owner}/{self.repo_name}
-- Branch: {self.branch_name}
-- Automation: Python Script
+        # 1. Create Issue
+        res_issue = self.api_post("issues", {"title": "Quickdraw Challenge", "body": "Need a fix fast!"})
+        if res_issue.status_code != 201: return
+        issue_data = res_issue.json()
+        issue_num = issue_data["number"]
+        self.log("API", f"Issue #{issue_num} ouverte.")
 
----
-*Généré automatiquement par le script d'automatisation GitHub Pair Badge*
-"""
-            with open(collab_file, 'w', encoding='utf-8') as f:
-                f.write(content)
-            self.print_success("Fichier COLLABORATION.md créé")
-        
-        return True
-    
-    def create_collaborative_commit(self):
-        """Créer un commit avec co-auteurs"""
-        self.print_step("Création du commit collaboratif...")
-        
-        # Ajouter les fichiers
-        success, _ = self.run_command("git add .")
-        if not success:
-            return False
-        
-        # Créer le commit avec co-auteurs
-        commit_message = f"""feat: Add collaborative documentation for Pair Extraordinaire
+        # 2. Create PR
+        branch = f"achievement/quick-{int(time.time())}"
+        self.run_git(f"git checkout main")
+        self.run_git(f"git checkout -b {branch}")
+        with open(os.path.join(self.working_dir, "quick.txt"), "w") as f: f.write("fixed")
+        self.run_git("git add quick.txt")
+        self.run_git('git commit -m "fix: resolve quick issue"')
+        self.run_git(f"git push origin {branch}")
 
-This commit demonstrates pair programming practices and collaborative 
-development workflows for the GitHub Pair Extraordinaire achievement.
+        res_pr = self.api_post("pulls", {
+            "title": f"Fix Quickdraw #{issue_num}",
+            "head": branch, "base": "main",
+            "body": f"Closes #{issue_num}"
+        })
+        if res_pr.status_code == 201:
+            pr_data = res_pr.json()
+            pr_num = pr_data["number"]
+            self.log("API", f"PR #{pr_num} ouverte.")
+            self.api_put(f"pulls/{pr_num}/merge", {"merge_method": "squash"})
+            self.api_delete(f"git/refs/heads/{branch}")
+            self.log("SUCCESS", f"PR #{pr_num} mergée instantanément. Badge Quickdraw visé!")
 
-Features:
-- Collaborative documentation
-- Pair programming demonstration
-- Multi-author contribution
+    def badge_yolo(self):
+        """Automate YOLO Achievement (Merge without review)"""
+        self.log("BADGE", "Exécution de la stratégie 'YOLO'...")
+        # Actually any automated merge via API without prior review triggers YOLO
+        self.badge_pair_extraordinaire() 
 
-Co-authored-by: {self.collaborator_name} <{self.collaborator_email}>
-Co-authored-by: {self.user_name} <{self.user_email}>"""
-
-        success, _ = self.run_command(f'git commit -m "{commit_message}"')
-        if success:
-            self.print_success("Commit collaboratif créé")
-            return True
-        return False
-    
-    def push_changes(self):
-        """Pousser les modifications"""
-        self.print_step("Push des modifications...")
-        
-        success, _ = self.run_command(f"git push origin {self.branch_name}")
-        if success:
-            self.print_success("Modifications poussées")
-            return True
-        return False
-    
-    def create_pull_request_api(self):
-        """Créer une pull request via l'API GitHub"""
-        if not self.github_token:
-            self.print_warning("Token GitHub manquant, création manuelle nécessaire")
-            return self.create_pull_request_manual()
-        
-        self.print_step("Création de la Pull Request via API...")
-        
-        url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/pulls"
-        headers = {
-            "Authorization": f"token {self.github_token}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        
-        data = {
-            "title": "feat: Add collaborative documentation for Pair Extraordinaire badge",
-            "head": self.branch_name,
-            "base": "main",
-            "body": f"""# Collaborative Development Demonstration
-
-This PR showcases collaborative development practices for the GitHub Pair Extraordinaire achievement.
-
-## Changes
-- Added collaborative documentation
-- Updated project metadata
-- Demonstrated pair programming workflows
-
-## Co-authors
-- {self.collaborator_name}
-- {self.user_name}
-
-## Automation
-This PR was created automatically using the GitHub Pair Badge automation script.
-
-## Achievement Goal
-This commit demonstrates multi-author collaboration for the **Pair Extraordinaire** badge.
-
----
-*Generated automatically on {datetime.now().isoformat()}*
-"""
-        }
-        
-        try:
-            response = requests.post(url, headers=headers, json=data)
-            if response.status_code == 201:
-                pr_data = response.json()
-                pr_number = pr_data['number']
-                pr_url = pr_data['html_url']
-                self.print_success(f"Pull Request créée: #{pr_number}")
-                print(f"URL: {pr_url}")
-                
-                # Optionnel: merger automatiquement
-                if input("Merger automatiquement la PR? (y/n): ").lower() == 'y':
-                    self.merge_pull_request_api(pr_number)
-                
-                return True
-            else:
-                self.print_error(f"Échec création PR: {response.status_code}")
-                return False
-        except Exception as e:
-            self.print_error(f"Erreur API: {str(e)}")
-            return False
-    
-    def merge_pull_request_api(self, pr_number):
-        """Merger une pull request via l'API"""
-        self.print_step(f"Merge de la PR #{pr_number}...")
-        
-        url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/pulls/{pr_number}/merge"
-        headers = {
-            "Authorization": f"token {self.github_token}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        
-        data = {
-            "commit_title": "feat: Add collaborative documentation",
-            "commit_message": "Merge collaborative development demonstration",
-            "merge_method": "squash"
-        }
-        
-        try:
-            response = requests.put(url, headers=headers, json=data)
-            if response.status_code == 200:
-                self.print_success("Pull Request mergée avec succès")
-                
-                # Supprimer la branche
-                self.delete_branch_api()
-                return True
-            else:
-                self.print_error(f"Échec merge: {response.status_code}")
-                return False
-        except Exception as e:
-            self.print_error(f"Erreur merge: {str(e)}")
-            return False
-    
-    def delete_branch_api(self):
-        """Supprimer la branche via l'API"""
-        url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/git/refs/heads/{self.branch_name}"
-        headers = {
-            "Authorization": f"token {self.github_token}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        
-        try:
-            response = requests.delete(url, headers=headers)
-            if response.status_code == 204:
-                self.print_success("Branche supprimée")
-            else:
-                self.print_warning("Impossible de supprimer la branche automatiquement")
-        except Exception as e:
-            self.print_warning(f"Erreur suppression branche: {str(e)}")
-    
-    def create_pull_request_manual(self):
-        """Instructions pour création manuelle de PR"""
-        self.print_step("Instructions pour création manuelle...")
-        
-        print("\n=== CRÉATION MANUELLE DE PULL REQUEST ===")
-        print(f"1. Allez sur: https://github.com/{self.repo_owner}/{self.repo_name}")
-        print("2. Cliquez sur 'Compare & pull request'")
-        print("3. Titre: 'feat: Add collaborative documentation for Pair Extraordinaire badge'")
-        print("4. Description: Mentionnez la collaboration et les co-auteurs")
-        print("5. Créez la pull request")
-        print("6. Mergez avec 'Squash and merge'")
-        print("7. Supprimez la branche après merge")
-        print()
-        
-        return True
-    
     def cleanup(self):
-        """Nettoyer les fichiers temporaires"""
-        if hasattr(self, 'working_dir') and os.path.exists(self.working_dir):
-            shutil.rmtree(os.path.dirname(self.working_dir))
-            self.print_success("Nettoyage terminé")
-    
-    def final_check(self):
-        """Vérification finale et instructions"""
-        self.print_step("Vérification finale...")
-        
-        print("\n=== RÉSUMÉ ===")
-        print(f"✅ Dépôt: {self.repo_owner}/{self.repo_name}")
-        print(f"✅ Branche: {self.branch_name}")
-        print("✅ Commit collaboratif créé")
-        print("✅ Modifications poussées")
-        print()
-        
-        self.print_success("Processus terminé!")
-        self.print_warning("Le badge peut prendre quelques minutes à apparaître.")
-        
-        print("\n=== VÉRIFICATION ===")
-        print("1. Vérifiez que votre commit montre 2 avatars d'utilisateurs")
-        print("2. Allez sur votre profil GitHub pour voir le badge")
-        print("3. Le badge 'Pair Extraordinaire' devrait apparaître dans vos achievements")
-        print(f"4. Lien direct: https://github.com/{self.user_name}")
-    
-    def run(self):
-        """Exécuter le processus complet"""
-        print("\033[32m")
-        print("╔══════════════════════════════════════════════════════════════╗")
-        print("║             GITHUB PAIR EXTRAORDINAIRE AUTOMATION           ║")
-        print("║                Script Python automatisé                     ║")
-        print("╚══════════════════════════════════════════════════════════════╝")
-        print("\033[0m\n")
-        
+        if self.working_dir and os.path.exists(self.working_dir):
+            shutil.rmtree(self.working_dir)
+            self.log("CLEANUP", "Dossier temporaire supprimé.")
+
+    def run(self, badge_type="pair", count=16):
         try:
-            self.setup_config()
+            self.setup()
+            if not self.prepare_temp_repo(): return
             
-            if not self.prepare_repo():
-                return False
-                
-            if not self.create_branch():
-                return False
-                
-            if not self.make_changes():
-                return False
-                
-            if not self.create_collaborative_commit():
-                return False
-                
-            if not self.push_changes():
-                return False
-                
-            self.create_pull_request_api()
-            self.final_check()
+            if badge_type == "pair":
+                self.badge_pair_extraordinaire()
+            elif badge_type == "shark":
+                self.badge_pull_shark(count)
+            elif badge_type == "quick":
+                self.badge_quickdraw()
+            elif badge_type == "yolo":
+                self.badge_yolo()
+            elif badge_type == "all":
+                self.badge_pair_extraordinaire()
+                self.badge_quickdraw()
+                self.badge_pull_shark(count)
             
-            self.print_success("🎉 Automatisation terminée avec succès!")
-            return True
-            
+            self.log("FINISH", "Processus terminé !", Color.GREEN)
         except KeyboardInterrupt:
-            self.print_error("Script interrompu par l'utilisateur")
-            return False
+            self.log("HALT", "Interrompu par l'utilisateur.", Color.YELLOW)
         except Exception as e:
-            self.print_error(f"Erreur inattendue: {str(e)}")
-            return False
+            self.log("ERROR", str(e), Color.RED)
         finally:
             self.cleanup()
 
 def main():
-    """Point d'entrée principal"""
-    automator = GitHubPairBadgeAutomator()
-    success = automator.run()
-    sys.exit(0 if success else 1)
+    parser = argparse.ArgumentParser(description="GoGreenPro Achievement Automation")
+    parser.add_argument("--badge", choices=["pair", "shark", "quick", "yolo", "all"], default="pair", help="Type de badge à automatiser")
+    parser.add_argument("--count", type=int, default=16, help="Nombre de PR pour Pull Shark (default: 16)")
+    args = parser.parse_args()
+
+    # Load environment variables from .env if it exists
+    if os.path.exists(".env"):
+        with open(".env") as f:
+            for line in f:
+                if "=" in line and not line.startswith("#"):
+                    key, value = line.strip().split("=", 1)
+                    os.environ[key] = value
+
+    automator = BadgeAutomator()
+    automator.run(badge_type=args.badge, count=args.count)
 
 if __name__ == "__main__":
-    main() 
+    main()
